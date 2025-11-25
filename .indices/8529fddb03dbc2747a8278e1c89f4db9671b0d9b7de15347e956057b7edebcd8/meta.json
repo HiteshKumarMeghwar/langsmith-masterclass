@@ -1,0 +1,6 @@
+{
+  "pdf_path": "C:\\Users\\DEVELOPER-\\Desktop\\langsmith-masterclass\\islr.pdf",
+  "chunk_size": 1000,
+  "chunk_overlap": 150,
+  "embedding_model": "BAAI/bge-small-en-v1.5"
+}

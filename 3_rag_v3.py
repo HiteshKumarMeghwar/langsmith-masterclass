@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 from langsmith import traceable
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_classic.text_splitter import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace,HuggingFaceEndpointEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
@@ -32,7 +32,7 @@ def split_documents(docs, chunk_size=1000, chunk_overlap=150):
 
 @traceable(name="build_vectorstore")
 def build_vectorstore(splits):
-    emb = OpenAIEmbeddings(model="text-embedding-3-small")
+    emb = HuggingFaceEndpointEmbeddings(model="BAAI/bge-small-en-v1.5")
     return FAISS.from_documents(splits, emb)
 
 # ----------------- parent setup function (traced) -----------------
@@ -45,7 +45,20 @@ def setup_pipeline(pdf_path: str, chunk_size=1000, chunk_overlap=150):
     return vs
 
 # ----------------- model, prompt, and run -----------------
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+model_gen = HuggingFaceEndpoint(
+    # repo_id="Qwen/Qwen2.5-7B-Instruct",
+    repo_id="google/gemma-2-2b-it",
+    # repo_id="openai/gpt-oss-20b",
+    # repo_id="MiniMaxAI/MiniMax-M2",
+    # repo_id="meta-llama/Llama-3.1-70B-Instruct",
+    # repo_id="moonshotai/Kimi-K2-Thinking",
+    task="text-generation",
+    max_new_tokens=200,
+    do_sample=False,
+    temperature=0.2,     
+    model_kwargs={"device_map": None}  # Force remote inference
+)
+generator_llm = ChatHuggingFace(llm=model_gen)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "Answer ONLY from the provided context. If not found, say you don't know."),
@@ -68,7 +81,7 @@ def setup_pipeline_and_query(pdf_path: str, question: str):
         "question": RunnablePassthrough(),
     })
 
-    chain = parallel | prompt | llm | StrOutputParser()
+    chain = parallel | prompt | generator_llm | StrOutputParser()
 
     # This LangChain run stays under the same root (since we're inside this traced function)
     lc_config = {"run_name": "pdf_rag_query"}
